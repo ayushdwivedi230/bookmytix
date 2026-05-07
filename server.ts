@@ -34,7 +34,7 @@ createSeedEvent('Pushpa 2', 'Hyderabad', '2026-12-05', 499, 'M', 20, 'Movies', '
 createSeedEvent('Kalki 2898 AD', 'Mumbai', '2026-09-15', 599, 'M', 20, 'Movies', 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=800&h=600');
 createSeedEvent('Stree 2', 'Delhi', '2026-10-31', 399, 'M', 20, 'Movies', 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&q=80&w=800&h=600');
 createSeedEvent('Sunburn Goa', 'Goa', '2026-12-28', 4999, 'C', 50, 'Concerts', 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=800&h=600');
-createSeedEvent('Diljit Live', 'Chandigarh', '2026-11-20', 2999, 'C', 50, 'Concerts', '/diljit.jpg');
+createSeedEvent('Diljit Live', 'Chandigarh', '2026-11-20', 2999, 'C', 50, 'Concerts', '/diljit.png');
 createSeedEvent('IPL Finals', 'Ahmedabad', '2026-05-29', 1499, 'S', 50, 'Sports', 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&q=80&w=800&h=600');
 createSeedEvent('India vs Australia', 'Bengaluru', '2026-02-15', 1999, 'S', 50, 'Sports', 'https://images.unsplash.com/photo-1504450758481-7338eba7524a?auto=format&fit=crop&q=80&w=800&h=600');
 createSeedEvent('Zakir Khan Live', 'Pune', '2026-08-10', 999, 'COM-', 30, 'Comedy', 'https://images.unsplash.com/photo-1585699324551-f6c309eedeca?auto=format&fit=crop&q=80&w=800&h=600');
@@ -63,7 +63,7 @@ async function startServer() {
   app.post('/api/auth/register', (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
-    
+
     if (db.users.find(u => u.email === email)) {
       return res.status(400).json({ error: 'Email already exists' });
     }
@@ -71,7 +71,7 @@ async function startServer() {
     const hash = bcrypt.hashSync(password, 8);
     const id = userIds++;
     db.users.push({ id, name, email, password: hash });
-    
+
     const token = jwt.sign({ id, email, name }, JWT_SECRET);
     res.json({ token, user: { id, name, email } });
   });
@@ -79,10 +79,10 @@ async function startServer() {
   app.post('/api/auth/login', (req, res) => {
     const { email, password } = req.body;
     const user = db.users.find(u => u.email === email);
-    
+
     if (!user) return res.status(400).json({ error: 'User not found' });
     if (!bcrypt.compareSync(password, user.password)) return res.status(403).json({ error: 'Incorrect password' });
-    
+
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET);
     res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
   });
@@ -105,14 +105,14 @@ async function startServer() {
   app.post('/api/events', authenticateToken, (req: any, res) => {
     const { title, location, date, price, num_seats } = req.body;
     const num = parseInt(num_seats) || 20;
-    
+
     const eventId = eventIds++;
     db.events.push({ id: eventId, title, location, date, price: parseFloat(price) });
-    
+
     for (let i = 1; i <= num; i++) {
       db.seats.push({ id: seatIds++, event_id: eventId, seat_number: `A${i}`, status: 'available' });
     }
-    
+
     res.json({ message: 'Event created', id: eventId });
   });
 
@@ -128,28 +128,28 @@ async function startServer() {
   app.post('/api/bookings', authenticateToken, (req: any, res) => {
     const { event_id, seat_ids, total_price } = req.body;
     const user_id = req.user.id;
-    
+
     // Check seat availability
     const seatsToBook = db.seats.filter(s => seat_ids.includes(s.id));
     if (seatsToBook.length !== seat_ids.length || seatsToBook.some(s => s.status !== 'available')) {
       return res.status(400).json({ error: 'Seats unavailable' });
     }
-    
+
     const bookingId = bookingIds++;
     db.bookings.push({ id: bookingId, user_id, event_id, total_price, status: 'confirmed' });
-    
+
     for (const seat of seatsToBook) {
       seat.status = 'booked';
       const qr_code = `QR-${bookingId}-${seat.id}-${Date.now()}`;
       db.tickets.push({ id: ticketIds++, booking_id: bookingId, qr_code, seat_id: seat.id });
     }
-    
+
     res.json({ message: 'Booking successful', booking_id: bookingId });
   });
 
   app.get('/api/bookings', authenticateToken, (req: any, res) => {
     const userBookings = db.bookings.filter(b => b.user_id === req.user.id);
-    
+
     const result = userBookings.map(b => {
       const event = db.events.find(e => e.id === b.event_id) || {} as any;
       const bTickets = db.tickets.filter(t => t.booking_id === b.id).map(t => {
@@ -164,7 +164,7 @@ async function startServer() {
         tickets: bTickets
       };
     });
-    
+
     res.json(result);
   });
 
