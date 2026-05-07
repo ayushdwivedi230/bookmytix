@@ -34,7 +34,7 @@ createSeedEvent('Pushpa 2', 'Hyderabad', '2026-12-05', 499, 'M', 20, 'Movies', '
 createSeedEvent('Kalki 2898 AD', 'Mumbai', '2026-09-15', 599, 'M', 20, 'Movies', 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=800&h=600');
 createSeedEvent('Stree 2', 'Delhi', '2026-10-31', 399, 'M', 20, 'Movies', 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&q=80&w=800&h=600');
 createSeedEvent('Sunburn Goa', 'Goa', '2026-12-28', 4999, 'C', 50, 'Concerts', 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=800&h=600');
-createSeedEvent('Diljit Live', 'Chandigarh', '2026-11-20', 2999, 'C', 50, 'Concerts', 'https://images.unsplash.com/photo-1493225457124-a1a2a5956093?auto=format&fit=crop&q=80&w=800&h=600');
+createSeedEvent('Diljit Live', 'Chandigarh', '2026-11-20', 2999, 'C', 50, 'Concerts', '/diljit.jpg');
 createSeedEvent('IPL Finals', 'Ahmedabad', '2026-05-29', 1499, 'S', 50, 'Sports', 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&q=80&w=800&h=600');
 createSeedEvent('India vs Australia', 'Bengaluru', '2026-02-15', 1999, 'S', 50, 'Sports', 'https://images.unsplash.com/photo-1504450758481-7338eba7524a?auto=format&fit=crop&q=80&w=800&h=600');
 createSeedEvent('Zakir Khan Live', 'Pune', '2026-08-10', 999, 'COM-', 30, 'Comedy', 'https://images.unsplash.com/photo-1585699324551-f6c309eedeca?auto=format&fit=crop&q=80&w=800&h=600');
