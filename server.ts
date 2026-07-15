@@ -45,28 +45,104 @@ let bookingIds = 1;
 let ticketIds = 1;
 
 // Seed initial data
-const createSeedEvent = (title: string, location: string, date: string, price: number, seatPrefix: string, numSeats: number, category: string, image: string) => {
+const createSeedEvent = (title: string, location: string, date: string, price: number, seatPrefix: string, numSeats: number, category: string, image: string, extra?: { theatres?: string[]; showTimings?: string[]; description?: string }) => {
   const eventId = eventIds++;
-  db.events.push({ id: eventId, title, location, date, price, category, image });
+  db.events.push({
+    id: eventId,
+    title,
+    location,
+    date,
+    price,
+    category,
+    image,
+    theatres: extra?.theatres || ['PVR Cinemas', 'INOX'],
+    showTimings: extra?.showTimings || ['09:30 AM', '01:00 PM', '06:30 PM'],
+    description: extra?.description || 'Premium seats, convenient showtimes, and a seamless booking experience.'
+  });
   for (let i = 1; i <= numSeats; i++) {
     db.seats.push({ id: seatIds++, event_id: eventId, seat_number: `${seatPrefix}${i}`, status: 'available' });
   }
 };
 
-createSeedEvent('Pushpa 2', 'Hyderabad', '2026-12-05', 499, 'M', 20, 'Movies', 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=800&h=600');
-createSeedEvent('Kalki 2898 AD', 'Mumbai', '2026-09-15', 599, 'M', 20, 'Movies', 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=800&h=600');
-createSeedEvent('Stree 2', 'Delhi', '2026-10-31', 399, 'M', 20, 'Movies', 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&q=80&w=800&h=600');
-createSeedEvent('Sunburn Goa', 'Goa', '2026-12-28', 4999, 'C', 50, 'Concerts', 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=800&h=600');
-createSeedEvent('Diljit Live', 'Chandigarh', '2026-11-20', 2999, 'C', 50, 'Concerts', '/diljit.png');
-createSeedEvent('IPL Finals', 'Ahmedabad', '2026-05-29', 1499, 'S', 50, 'Sports', 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&q=80&w=800&h=600');
-createSeedEvent('India vs Australia', 'Bengaluru', '2026-02-15', 1999, 'S', 50, 'Sports', 'https://images.unsplash.com/photo-1504450758481-7338eba7524a?auto=format&fit=crop&q=80&w=800&h=600');
-createSeedEvent('Zakir Khan Live', 'Pune', '2026-08-10', 999, 'COM-', 30, 'Comedy', 'https://images.unsplash.com/photo-1585699324551-f6c309eedeca?auto=format&fit=crop&q=80&w=800&h=600');
-createSeedEvent('Anubhav Singh Bassi Tour', 'Jaipur', '2026-07-22', 799, 'COM-', 30, 'Comedy', 'https://images.unsplash.com/photo-1527224857830-43a7acc85260?auto=format&fit=crop&q=80&w=800&h=600');
-createSeedEvent('AI India Summit', 'Bengaluru', '2026-09-05', 3999, 'T', 50, 'Tech Events', 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&q=80&w=800&h=600');
+createSeedEvent('Pushpa 2', 'Hyderabad', '2026-12-05', 499, 'M', 20, 'Movies', 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&q=80&w=800&h=600', {
+  theatres: ['PVR Hyderabad', 'Cinepolis Hitec City', 'INOX Gachibowli'],
+  showTimings: ['11:30 AM', '02:15 PM', '06:00 PM', '09:30 PM'],
+  description: 'Blockbuster action with high-energy performances and premium Dolby screening options.'
+});
+createSeedEvent('Kalki 2898 AD', 'Mumbai', '2026-09-15', 599, 'M', 20, 'Movies', 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&q=80&w=800&h=600', {
+  theatres: ['PVR Jio World', 'INOX Andheri', 'Cinepolis Infinity'],
+  showTimings: ['10:00 AM', '01:30 PM', '04:45 PM', '08:15 PM'],
+  description: 'Immersive sci-fi spectacle with premium IMAX and 4DX screening availability.'
+});
+createSeedEvent('Stree 2', 'Delhi', '2026-10-31', 399, 'M', 20, 'Movies', 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&q=80&w=800&h=600', {
+  theatres: ['PVR Plaza', 'INOX City Centre', 'Cinepolis Chanakyapuri'],
+  showTimings: ['12:00 PM', '03:30 PM', '07:00 PM', '10:15 PM'],
+  description: 'A laugh-out-loud horror-comedy packed with laughs, thrills, and fan-favourite moments.'
+});
+createSeedEvent('Aarohan', 'Mumbai', '2026-08-05', 349, 'M', 24, 'Movies', 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=800&q=80', {
+  theatres: ['PVR Icon', 'Cinepolis Skywalk', 'INOX Wadala'],
+  showTimings: ['11:15 AM', '02:00 PM', '05:30 PM', '09:00 PM'],
+  description: 'A moving contemporary drama with intimate storytelling and premium seating experience.'
+});
+createSeedEvent('Bhoomi 9', 'Delhi', '2026-08-20', 329, 'M', 24, 'Movies', 'https://images.unsplash.com/photo-1517602302552-471fe67acf66?auto=format&fit=crop&w=800&q=80', {
+  theatres: ['PVR Saket', 'INOX DLF', 'Cinepolis Gurugram'],
+  showTimings: ['10:30 AM', '01:45 PM', '04:30 PM', '08:45 PM'],
+  description: 'An edge-of-the-seat thriller with stylish visuals and multiple premium show slots.'
+});
+createSeedEvent('Chasing Shadows', 'Bengaluru', '2026-09-10', 379, 'M', 24, 'Movies', 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=800&q=80', {
+  theatres: ['PVR Orion', 'INOX NEXUS', 'Cinepolis Mantri'],
+  showTimings: ['11:00 AM', '02:30 PM', '06:15 PM', '09:45 PM'],
+  description: 'A gripping crime drama with modern visuals and a cinematic surround sound experience.'
+});
+createSeedEvent('Dance of Dust', 'Pune', '2026-09-25', 319, 'M', 24, 'Movies', 'https://images.unsplash.com/photo-1513106580091-1d82408b8cd6?auto=format&fit=crop&w=800&q=80', {
+  theatres: ['PVR Phoenix', 'INOX Westend', 'Cinepolis Vimannagar'],
+  showTimings: ['12:15 PM', '03:45 PM', '07:15 PM', '10:30 PM'],
+  description: 'A vibrant romance with warm storytelling and comfortable premium seating.'
+});
+createSeedEvent('Echoes of Jaipur', 'Jaipur', '2026-10-08', 299, 'M', 24, 'Movies', 'https://images.unsplash.com/photo-1516280030429-27679b7f7f6e?auto=format&fit=crop&w=800&q=80', {
+  theatres: ['PVR Pink City', 'INOX World Trade Park', 'Cinepolis Mansarovar'],
+  showTimings: ['10:45 AM', '01:15 PM', '05:00 PM', '08:30 PM'],
+  description: 'A rich cultural drama with a compelling story arc and intimate auditorium feel.'
+});
+createSeedEvent('Sunburn Goa', 'Goa', '2026-12-28', 4999, 'C', 50, 'Concerts', 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=800&h=600', {
+  theatres: ['Beachfront Arena', 'Main Stage Deck', 'VIP Lounge Pavilion'],
+  showTimings: ['04:00 PM', '06:30 PM', '09:00 PM'],
+  description: 'A high-energy live concert experience with immersive lighting, premium seating, and beachside vibes.'
+});
+createSeedEvent('Diljit Live', 'Chandigarh', '2026-11-20', 2999, 'C', 50, 'Concerts', '/diljit.png', {
+  theatres: ['NOVA Arena', 'Stadium Lounge', 'Golden Circle'],
+  showTimings: ['07:00 PM', '09:30 PM'],
+  description: 'A must-see live concert night featuring top-tier sound and premium hospitality zones.'
+});
+createSeedEvent('IPL Finals', 'Ahmedabad', '2026-05-29', 1499, 'S', 50, 'Sports', 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&q=80&w=800&h=600', {
+  theatres: ['Narendra Modi Stadium', 'VIP Skybox', 'Club Lounge'],
+  showTimings: ['07:30 PM'],
+  description: 'The grand finale under floodlights with premium hospitality and world-class matchday energy.'
+});
+createSeedEvent('India vs Australia', 'Bengaluru', '2026-02-15', 1999, 'S', 50, 'Sports', 'https://images.unsplash.com/photo-1504450758481-7338eba7524a?auto=format&fit=crop&q=80&w=800&h=600', {
+  theatres: ['M Chinnaswamy', 'Ridge Lounge', 'Arena Club'],
+  showTimings: ['02:00 PM', '07:00 PM'],
+  description: 'A marquee cricket showdown with immersive stadium viewing and premium fan experiences.'
+});
+createSeedEvent('Zakir Khan Live', 'Pune', '2026-08-10', 999, 'COM-', 30, 'Comedy', 'https://images.unsplash.com/photo-1585699324551-f6c309eedeca?auto=format&fit=crop&q=80&w=800&h=600', {
+  theatres: ['Balewadi Arena', 'Laugh Lounge', 'Main Hall'],
+  showTimings: ['07:30 PM', '09:00 PM'],
+  description: 'A sharp and witty stand-up show with front-row experiences and premium lounge seating.'
+});
+createSeedEvent('Anubhav Singh Bassi Tour', 'Jaipur', '2026-07-22', 799, 'COM-', 30, 'Comedy', 'https://images.unsplash.com/photo-1527224857830-43a7acc85260?auto=format&fit=crop&q=80&w=800&h=600', {
+  theatres: ['Jawahar Kala Kendra', 'Theatre Lounge', 'Studio Hall'],
+  showTimings: ['06:30 PM', '08:45 PM'],
+  description: 'A hilarious live comedy night with curated premium seating and fast-moving entertainment.'
+});
+createSeedEvent('AI India Summit', 'Bengaluru', '2026-09-05', 3999, 'T', 50, 'Tech Events', 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&q=80&w=800&h=600', {
+  theatres: ['The Forum', 'Innovation Hall', 'Tech Pavilion'],
+  showTimings: ['09:00 AM', '01:30 PM'],
+  description: 'A dynamic summit experience with premium access, networking zones, and on-site hospitality.'
+});
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
   app.use(express.static('public'));

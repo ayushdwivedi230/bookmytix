@@ -419,7 +419,7 @@ const HeroSlider = ({ onBookNow, onExplore }: { onBookNow: () => void, onExplore
   );
 };
 
-const TRAILER_MAP: Record<string, { embedUrl: string, genre: string, duration: string, rating: string }> = {
+const TRAILER_MAP: Record<string, { embedUrl: string, genre: string, duration: string, rating: string, watchUrl?: string, ctaLabel?: string, venue?: string, date?: string, time?: string, price?: string, description?: string }> = {
   'Pushpa 2': {
     embedUrl: 'https://www.youtube.com/embed/1kVK0MZlbI4',
     genre: 'Action, Thriller',
@@ -439,10 +439,12 @@ const TRAILER_MAP: Record<string, { embedUrl: string, genre: string, duration: s
     rating: 'UA | 16+'
   },
   'Sunburn Goa': {
-    embedUrl: 'https://www.youtube.com/embed/9Wq_3sS7L-M',
+    embedUrl: 'https://www.youtube.com/embed/X_fVnkCGbhE',
+    watchUrl: 'https://www.youtube.com/watch?v=X_fVnkCGbhE',
     genre: 'Music Festival',
     duration: '3 Days',
-    rating: '15+'
+    rating: '15+',
+    ctaLabel: 'Watch Trailer'
   },
   'Diljit Live': {
     embedUrl: 'https://www.youtube.com/embed/Upa41vS-qU8',
@@ -450,11 +452,18 @@ const TRAILER_MAP: Record<string, { embedUrl: string, genre: string, duration: s
     duration: '3h 0m',
     rating: 'All Ages'
   },
-  'IPL Finals': {
-    embedUrl: 'https://www.youtube.com/embed/F3gCJuS4XnI',
+  'IPL Final 2026': {
+    embedUrl: 'https://www.youtube.com/embed/a4G8zz37hQQ',
+    watchUrl: 'https://www.youtube.com/watch?v=a4G8zz37hQQ',
     genre: 'Sports, Cricket',
     duration: '4h 0m',
-    rating: 'All Ages'
+    rating: 'All Ages',
+    ctaLabel: 'Watch Highlights',
+    venue: 'Wankhede Stadium, Mumbai',
+    date: '29 May 2026',
+    time: '7:30 PM IST',
+    price: '₹1,500 onwards',
+    description: 'Witness the season finale under floodlights as the two best teams battle for the IPL trophy in a packed stadium atmosphere.'
   },
   'India vs Australia': {
     embedUrl: 'https://www.youtube.com/embed/F3gCJuS4XnI',
@@ -480,6 +489,301 @@ const TRAILER_MAP: Record<string, { embedUrl: string, genre: string, duration: s
     duration: '2 Days',
     rating: 'Professional'
   }
+};
+
+const BookingFlow = ({ token, event }: { token: string | null; event: any }) => {
+  const navigate = useNavigate();
+  const [selectedTheatre, setSelectedTheatre] = useState('');
+  const [selectedShowtime, setSelectedShowtime] = useState('');
+  const [seats, setSeats] = useState<any[]>([]);
+  const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
+  const [step, setStep] = useState<'select' | 'seats' | 'checkout' | 'confirmed'>('select');
+  const [loadingSeats, setLoadingSeats] = useState(true);
+  const [booking, setBooking] = useState(false);
+  const [confirmationBooking, setConfirmationBooking] = useState<any>(null);
+
+  useEffect(() => {
+    if (!event?.id) return;
+    setLoadingSeats(true);
+    api.get(`/events/${event.id}/seats`)
+      .then((data) => {
+        setSeats(Array.isArray(data) ? data : []);
+        setLoadingSeats(false);
+      })
+      .catch(() => setLoadingSeats(false));
+  }, [event?.id]);
+
+  useEffect(() => {
+    if (!event) return;
+    setSelectedTheatre(event.theatres?.[0] || '');
+    setSelectedShowtime(event.showTimings?.[0] || '');
+    setSelectedSeats([]);
+    setStep('select');
+  }, [event?.id]);
+
+  const theatres = event?.theatres?.length ? event.theatres : [event?.location || 'Main Hall'];
+  const showtimes = event?.showTimings?.length ? event.showTimings : ['09:00 AM'];
+
+  const getSeatCategory = (index: number) => {
+    const row = Math.floor(index / 10);
+    if (row < 2) {
+      return { name: 'VIP', badge: 'Gold', surcharge: 200, badgeColor: 'bg-amber-100 text-amber-800 border-amber-200' };
+    } else if (row < 4) {
+      return { name: 'Premium', badge: 'Purple', surcharge: 100, badgeColor: 'bg-purple-100 text-purple-800 border-purple-200' };
+    }
+    return { name: 'Executive', badge: 'Green', surcharge: 0, badgeColor: 'bg-green-100 text-green-800 border-green-200' };
+  };
+
+  const toggleSeat = (seatId: number, status: string) => {
+    if (status !== 'available') return;
+    setSelectedSeats(prev => prev.includes(seatId) ? prev.filter(s => s !== seatId) : [...prev, seatId]);
+  };
+
+  const basePrice = Number(event?.price || 0);
+  const numTickets = selectedSeats.length;
+  const basePriceTotal = numTickets * basePrice;
+  const premiumChargesTotal = selectedSeats.reduce((sum, seatId) => {
+    const seatIndex = seats.findIndex(s => s.id === seatId);
+    if (seatIndex !== -1) return sum + getSeatCategory(seatIndex).surcharge;
+    return sum;
+  }, 0);
+  const convenienceFee = numTickets > 0 ? numTickets * 40 : 0;
+  const gst = numTickets > 0 ? Math.round((basePriceTotal + premiumChargesTotal + convenienceFee) * 0.18) : 0;
+  const grandTotal = basePriceTotal + premiumChargesTotal + convenienceFee + gst;
+
+  const handleBooking = async () => {
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    if (!selectedTheatre || !selectedShowtime || selectedSeats.length === 0) return;
+    setBooking(true);
+    try {
+      await api.post('/bookings', { event_id: event.id, seat_ids: selectedSeats, total_price: grandTotal }, token);
+      const bookings = await api.get('/bookings', token);
+      const latest = bookings[bookings.length - 1];
+      setConfirmationBooking(latest);
+      setStep('confirmed');
+    } catch (err: any) {
+      alert(`Booking failed: ${err.message}`);
+    } finally {
+      setBooking(false);
+    }
+  };
+
+  if (!event) return null;
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#F84464]">Book this show</p>
+          <h3 className="mt-2 text-xl font-semibold text-slate-900">Choose a theatre, show timing, and seats</h3>
+          <p className="mt-2 text-sm text-slate-500">The same secure booking flow now works for every movie in our Now Showing lineup.</p>
+        </div>
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-600">
+          <CreditCard size={15} className="text-[#F84464]" />
+          <span>Secure checkout</span>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        {step === 'select' && (
+          <div className="space-y-6">
+            <div>
+              <h4 className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">Theatre</h4>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {theatres.map((theatre: string) => (
+                  <button
+                    key={theatre}
+                    onClick={() => setSelectedTheatre(theatre)}
+                    className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${selectedTheatre === theatre ? 'border-[#F84464] bg-[#F84464]/10 text-[#F84464]' : 'border-slate-200 bg-white text-slate-700 hover:border-[#F84464]/40'}`}
+                  >
+                    {theatre}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">Show timing</h4>
+              <div className="mt-3 flex flex-wrap gap-3">
+                {showtimes.map((showtime: string) => (
+                  <button
+                    key={showtime}
+                    onClick={() => setSelectedShowtime(showtime)}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${selectedShowtime === showtime ? 'border-[#F84464] bg-[#F84464] text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-[#F84464]/40'}`}
+                  >
+                    {showtime}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+              <div className="text-sm text-slate-500">
+                {selectedTheatre && selectedShowtime ? `Selected: ${selectedTheatre} • ${selectedShowtime}` : 'Pick a theatre and show time to continue.'}
+              </div>
+              <button
+                onClick={() => setStep('seats')}
+                disabled={!selectedTheatre || !selectedShowtime}
+                className="rounded-full bg-[#F84464] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#e03b5a] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Continue to Seats
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'seats' && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{selectedTheatre}</p>
+                <p className="text-sm text-slate-500">{selectedShowtime}</p>
+              </div>
+              <div className="text-sm font-semibold text-[#F84464]">₹{basePrice} per ticket</div>
+            </div>
+
+            {loadingSeats ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">Loading seat map...</div>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="mb-4 flex justify-center">
+                  <div className="w-full max-w-xl rounded-full bg-slate-100 px-4 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-500">Screen this way</div>
+                </div>
+                <div className="overflow-x-auto">
+                  <div className="mx-auto grid min-w-[320px] max-w-3xl grid-cols-10 gap-2 md:gap-3">
+                    {seats.map((seat, index) => {
+                      const isSelected = selectedSeats.includes(seat.id);
+                      const isBooked = seat.status === 'booked';
+                      const category = getSeatCategory(index);
+                      let seatClass = 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50';
+                      if (isBooked) seatClass = 'cursor-not-allowed border-slate-200 bg-slate-200 text-slate-400';
+                      else if (isSelected) {
+                        seatClass = category.name === 'VIP' ? 'border-amber-500 bg-amber-500 text-white' : category.name === 'Premium' ? 'border-purple-500 bg-purple-500 text-white' : 'border-green-500 bg-green-500 text-white';
+                      }
+                      return (
+                        <button
+                          key={seat.id}
+                          disabled={isBooked}
+                          onClick={() => toggleSeat(seat.id, seat.status)}
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg border text-[10px] font-bold transition ${seatClass}`}
+                        >
+                          {seat.seat_number}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-500">
+                  <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border border-amber-400 bg-white" /> VIP</span>
+                  <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border border-purple-400 bg-white" /> Premium</span>
+                  <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border border-green-400 bg-white" /> Executive</span>
+                  <span className="flex items-center gap-1"><span className="h-3 w-3 rounded border border-slate-300 bg-slate-200" /> Sold</span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+              <div className="text-sm text-slate-500">{selectedSeats.length} seat{selectedSeats.length === 1 ? '' : 's'} selected</div>
+              <div className="flex gap-3">
+                <button onClick={() => setStep('select')} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-[#F84464]/40">Back</button>
+                <button onClick={() => setStep('checkout')} disabled={selectedSeats.length === 0} className="rounded-full bg-[#F84464] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#e03b5a] disabled:cursor-not-allowed disabled:opacity-60">Continue to Checkout</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 'checkout' && (
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">Booking summary</p>
+              <div className="mt-3 space-y-2 text-sm text-slate-600">
+                <div className="flex items-center justify-between"><span>Movie</span><span className="font-semibold text-slate-900">{event.title}</span></div>
+                <div className="flex items-center justify-between"><span>Theatre</span><span className="font-semibold text-slate-900">{selectedTheatre}</span></div>
+                <div className="flex items-center justify-between"><span>Show</span><span className="font-semibold text-slate-900">{selectedShowtime}</span></div>
+                <div className="flex items-center justify-between"><span>Seats</span><span className="font-semibold text-slate-900">{selectedSeats.length}</span></div>
+                <div className="flex items-center justify-between"><span>Base price</span><span className="font-semibold text-slate-900">₹{basePriceTotal}</span></div>
+                <div className="flex items-center justify-between"><span>Tier surcharge</span><span className="font-semibold text-slate-900">₹{premiumChargesTotal}</span></div>
+                <div className="flex items-center justify-between"><span>Convenience fee</span><span className="font-semibold text-slate-900">₹{convenienceFee}</span></div>
+                <div className="flex items-center justify-between"><span>GST</span><span className="font-semibold text-[#F84464]">₹{gst}</span></div>
+              </div>
+              <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Grand total</p>
+                  <p className="text-2xl font-bold text-slate-900">₹{grandTotal}</p>
+                </div>
+                <button onClick={handleBooking} disabled={booking} className="rounded-full bg-[#F84464] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#e03b5a] disabled:cursor-not-allowed disabled:opacity-60">
+                  {booking ? 'Processing…' : 'Pay & Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 'confirmed' && confirmationBooking && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700">
+              <p className="text-sm font-semibold">Booking confirmed</p>
+              <p className="mt-1 text-sm">Your seats are reserved and your ticket is ready for download.</p>
+            </div>
+            <TicketCard booking={confirmationBooking} />
+            <div className="flex justify-end">
+              <Link to="/bookings" className="rounded-full bg-[#F84464] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#e03b5a]">View all tickets</Link>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const MovieBookingModal = ({ token, movie, onClose }: { token: string | null; movie: any; onClose: () => void }) => {
+  const [bookableEvent, setBookableEvent] = useState<any>(null);
+  const [loadingBooking, setLoadingBooking] = useState(true);
+
+  useEffect(() => {
+    if (!movie?.title) return;
+    setLoadingBooking(true);
+    api.get('/events').then((data) => {
+      const matched = Array.isArray(data) ? data.find((event: any) => event.title?.toLowerCase() === movie.title.toLowerCase()) : null;
+      setBookableEvent(matched || null);
+      setLoadingBooking(false);
+    }).catch(() => {
+      setBookableEvent(null);
+      setLoadingBooking(false);
+    });
+  }, [movie?.title]);
+
+  if (!movie) return null;
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4">
+      <div className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[28px] border border-white/10 bg-[#f8f8fb] p-4 shadow-2xl">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-full border border-slate-200 bg-white p-2 text-slate-500 transition hover:text-[#F84464]"
+        >
+          <X size={18} />
+        </button>
+        <div className="mb-4 pr-10">
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#F84464]">Book now</p>
+          <h3 className="mt-2 text-2xl font-semibold text-slate-900">{movie.title}</h3>
+          <p className="mt-1 text-sm text-slate-500">Choose your theatre, showtime, seats, and pay securely in one flow.</p>
+        </div>
+
+        {loadingBooking ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">Loading booking options…</div>
+        ) : bookableEvent ? (
+          <BookingFlow token={token} event={bookableEvent} />
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">Booking options are not available for this title right now.</div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 const MoviesPage = () => {
@@ -551,10 +855,29 @@ const MoviesPage = () => {
   );
 };
 
-const MovieDetailsPage = () => {
+const MovieDetailsPage = ({ token }: { token: string | null }) => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [bookableEvent, setBookableEvent] = useState<any>(null);
+  const [loadingBooking, setLoadingBooking] = useState(true);
   const movie = movieCatalog.find((item) => item.id === id);
+
+  useEffect(() => {
+    if (!movie?.title) {
+      setBookableEvent(null);
+      setLoadingBooking(false);
+      return;
+    }
+    setLoadingBooking(true);
+    api.get('/events').then((data) => {
+      const matched = Array.isArray(data) ? data.find((event: any) => event.title?.toLowerCase() === movie.title.toLowerCase()) : null;
+      setBookableEvent(matched || null);
+      setLoadingBooking(false);
+    }).catch(() => {
+      setBookableEvent(null);
+      setLoadingBooking(false);
+    });
+  }, [movie?.title]);
 
   if (!movie) {
     return (
@@ -631,25 +954,9 @@ const MovieDetailsPage = () => {
               </a>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div id="showtimes" className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-slate-900">Showtimes & theatres</h3>
               <div className="mt-4 space-y-4">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Theatres</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {movie.availableTheatres.map((theatre) => (
-                      <span key={theatre} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">{theatre}</span>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Timings</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {movie.showTimings.map((timing) => (
-                      <span key={timing} className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-700">{timing}</span>
-                    ))}
-                  </div>
-                </div>
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Formats</p>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -658,6 +965,13 @@ const MovieDetailsPage = () => {
                     ))}
                   </div>
                 </div>
+                {loadingBooking ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">Loading available shows…</div>
+                ) : bookableEvent ? (
+                  <BookingFlow token={token} event={bookableEvent} />
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">The booking experience is currently unavailable for this title. Please try another show.</div>
+                )}
               </div>
             </div>
           </div>
@@ -667,12 +981,13 @@ const MovieDetailsPage = () => {
   );
 };
 
-const Home = ({ selectedCity }: { selectedCity: string }) => {
+const Home = ({ selectedCity, token }: { selectedCity: string; token: string | null }) => {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTrailer, setActiveTrailer] = useState<any | null>(null);
   const [activeMovieIndex, setActiveMovieIndex] = useState(0);
+  const [bookingMovie, setBookingMovie] = useState<any | null>(null);
 
   const activeCategory = searchParams.get('category') || 'All';
   const searchQuery = searchParams.get('search') || '';
@@ -766,16 +1081,20 @@ const Home = ({ selectedCity }: { selectedCity: string }) => {
     if (trailer) {
       setActiveTrailer({
         title: titleKey,
+        watchUrl: trailer.watchUrl || trailer.embedUrl,
+        ctaLabel: trailer.ctaLabel || 'Watch Trailer on YouTube',
         ...trailer
       });
     } else {
       // Fallback
       setActiveTrailer({
         title: titleKey,
-        embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ', // Rickroll or generic placeholder
+        embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+        watchUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
         genre: 'Entertainment',
         duration: '2h 0m',
-        rating: 'UA'
+        rating: 'UA',
+        ctaLabel: 'Watch Trailer on YouTube'
       });
     }
   };
@@ -847,9 +1166,9 @@ const Home = ({ selectedCity }: { selectedCity: string }) => {
               Browse All <ArrowRight size={14} />
             </Link>
           </div>
-          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {nowShowing.slice(0, 8).map((movie) => (
-              <MovieCard key={movie.id} movie={movie} />
+              <MovieCard key={movie.id} movie={movie} showReserveButton onReserve={() => setBookingMovie(movie)} />
             ))}
           </div>
         </div>
@@ -1033,13 +1352,13 @@ const Home = ({ selectedCity }: { selectedCity: string }) => {
                 whileHover={{ scale: 1.01 }} 
                 className="group relative rounded-2xl overflow-hidden aspect-[4/3] cursor-pointer border border-white/10 shadow-xl bg-[#1A1A1A]"
               >
-                 <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80" loading="lazy" alt="Showcase" className="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition duration-700 ease-out transform group-hover:scale-105" />
+                 <img src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=800&q=80" loading="lazy" alt="Sunburn Goa" className="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition duration-700 ease-out transform group-hover:scale-105" />
                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-0"></div>
                  <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full flex justify-between items-end z-10">
                     <div className="pr-4 border-l-4 border-[#F84464] pl-4">
-                      <div className="bg-[#F84464] text-white text-[10px] font-bold px-2 py-0.5 rounded-sm inline-block mb-2 tracking-wider uppercase">Live Concert</div>
-                      <h3 className="text-2xl md:text-3xl font-extrabold text-white mb-1 leading-tight drop-shadow-md">Sunburn Festival <br/> Goa 2026</h3>
-                      <p className="text-gray-300 text-xs md:text-sm font-medium drop-shadow max-w-[250px]">Experience Asia's biggest electronic dance music festival.</p>
+                      <div className="bg-[#F84464] text-white text-[10px] font-bold px-2 py-0.5 rounded-sm inline-block mb-2 tracking-wider uppercase">Featured Event</div>
+                      <h3 className="text-2xl md:text-3xl font-extrabold text-white mb-1 leading-tight drop-shadow-md">Sunburn Goa <br/> 2026</h3>
+                      <p className="text-gray-300 text-xs md:text-sm font-medium drop-shadow max-w-[260px]">Beachside music, immersive visuals, and a full weekend of premium EDM energy.</p>
                     </div>
                     <button className="bg-white/10 backdrop-blur-md border border-white/20 rounded-full p-3 group-hover:bg-[#F84464] transition-all duration-300 group-hover:border-transparent group-hover:shadow-[0_0_20px_rgba(248,68,100,0.6)] group-hover:scale-110 cursor-pointer">
                       <Play size={20} className="text-white ml-0.5" fill="currentColor" />
@@ -1067,19 +1386,32 @@ const Home = ({ selectedCity }: { selectedCity: string }) => {
                  </motion.div>
 
                  <motion.div 
-                   onClick={() => openTrailer('IPL Finals')}
+                   onClick={() => openTrailer('IPL Final 2026')}
                    whileHover={{ scale: 1.02 }} 
                    className="group relative rounded-2xl overflow-hidden cursor-pointer border border-white/10 shadow-xl bg-[#1A1A1A]"
                  >
-                    <img src="https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=800&q=80" loading="lazy" alt="Showcase" className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition duration-700 ease-out transform group-hover:scale-105 absolute inset-0" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent"></div>
-                    <div className="relative p-6 h-full flex items-end justify-between min-h-[200px]">
+                    <img src="https://assets.bcci.tv/watermarkoutput/bcci/photos/2538/671839d8-1cb6-4362-a6db-fa3a406fa3d2.jpg" loading="lazy" alt="IPL Final 2026" className="w-full h-full object-cover opacity-55 group-hover:opacity-85 transition duration-700 ease-out transform group-hover:scale-105 absolute inset-0" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-transparent"></div>
+                    <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
+                      <span className="rounded-full border border-yellow-400/40 bg-yellow-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.3em] text-yellow-300 backdrop-blur"></span>
+                      <span className="rounded-full bg-[#F84464]/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-white">Finals</span>
+                    </div>
+                    <div className="relative p-6 h-full flex flex-col justify-end min-h-[220px]">
                           <div className="border-l-2 border-yellow-400 pl-3">
-                             <div className="text-[10px] text-yellow-400 font-bold mb-1 tracking-wider uppercase">Live Sports</div>
-                             <h3 className="text-xl font-bold text-white drop-shadow-md">IPL Finals Live</h3>
+                             <div className="text-[10px] text-yellow-400 font-bold mb-1 tracking-wider uppercase">Featured Event</div>
+                             <h3 className="text-xl font-bold text-white drop-shadow-md">IPL Final 2026</h3>
+                             <p className="mt-1 text-xs text-gray-300 max-w-[250px]">Packed stadium energy, dramatic floodlights, and a championship showdown with premium hospitality.</p>
+                             <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-gray-200">
+                               <span className="rounded-full bg-white/10 px-2.5 py-1">Wankhede Stadium</span>
+                               <span className="rounded-full bg-white/10 px-2.5 py-1">29 May 2026</span>
+                               <span className="rounded-full bg-white/10 px-2.5 py-1">₹1,500+</span>
+                             </div>
                           </div>
-                          <div className="bg-white/10 p-2.5 rounded-full backdrop-blur border border-white/10 group-hover:bg-yellow-500 transition-colors group-hover:border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0)] group-hover:shadow-[0_0_15px_rgba(234,179,8,0.6)] cursor-pointer">
-                             <Play className="text-white" size={18} fill="currentColor" />
+                          <div className="mt-4 flex items-center justify-between">
+                            <div className="text-[11px] text-gray-300">Live matchday vibes • Trophy chase • Fan zones</div>
+                            <div className="bg-white/10 p-2.5 rounded-full backdrop-blur border border-white/10 group-hover:bg-yellow-500 transition-colors group-hover:border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0)] group-hover:shadow-[0_0_15px_rgba(234,179,8,0.6)] cursor-pointer">
+                               <Play className="text-white" size={18} fill="currentColor" />
+                            </div>
                           </div>
                     </div>
                  </motion.div>
@@ -1087,6 +1419,10 @@ const Home = ({ selectedCity }: { selectedCity: string }) => {
            </div>
         </div>
       </section>
+
+      {bookingMovie && (
+        <MovieBookingModal token={token} movie={bookingMovie} onClose={() => setBookingMovie(null)} />
+      )}
 
       {/* Showcase Trailer Modal */}
       <AnimatePresence>
@@ -1146,17 +1482,47 @@ const Home = ({ selectedCity }: { selectedCity: string }) => {
                       <span className="text-xs text-gray-500 font-semibold block uppercase">Certification</span>
                       <span className="font-semibold text-white">{activeTrailer.rating}</span>
                     </div>
+                    {activeTrailer.venue && (
+                      <div>
+                        <span className="text-xs text-gray-500 font-semibold block uppercase">Venue</span>
+                        <span className="font-semibold text-white">{activeTrailer.venue}</span>
+                      </div>
+                    )}
+                    {activeTrailer.date && (
+                      <div>
+                        <span className="text-xs text-gray-500 font-semibold block uppercase">Date</span>
+                        <span className="font-semibold text-white">{activeTrailer.date}</span>
+                      </div>
+                    )}
+                    {activeTrailer.time && (
+                      <div>
+                        <span className="text-xs text-gray-500 font-semibold block uppercase">Match Time</span>
+                        <span className="font-semibold text-white">{activeTrailer.time}</span>
+                      </div>
+                    )}
+                    {activeTrailer.price && (
+                      <div>
+                        <span className="text-xs text-gray-500 font-semibold block uppercase">Ticket Price</span>
+                        <span className="font-semibold text-white">{activeTrailer.price}</span>
+                      </div>
+                    )}
+                    {activeTrailer.description && (
+                      <div>
+                        <span className="text-xs text-gray-500 font-semibold block uppercase">About</span>
+                        <span className="font-semibold text-white">{activeTrailer.description}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="pt-6 mt-6 border-t border-white/10">
                   <a 
-                    href={activeTrailer.embedUrl} 
+                    href={activeTrailer.watchUrl || activeTrailer.embedUrl} 
                     target="_blank" 
                     rel="noreferrer" 
                     className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold bg-[#F84464] text-white hover:bg-[#e03b5a] transition-all shadow-[0_0_20px_rgba(248,68,100,0.4)]"
                   >
-                    <Play size={16} fill="currentColor" /> Watch Trailer on YouTube
+                    <Play size={16} fill="currentColor" /> {activeTrailer.ctaLabel || 'Watch Trailer on YouTube'}
                   </a>
                 </div>
               </div>
@@ -1954,9 +2320,9 @@ export default function App() {
         <Navbar token={token} user={user} onLogOut={handleLogOut} selectedCity={selectedCity} setSelectedCity={setSelectedCity} />
         <main className="flex-grow">
           <Routes>
-            <Route path="/" element={<Home selectedCity={selectedCity} />} />
+            <Route path="/" element={<Home selectedCity={selectedCity} token={token} />} />
             <Route path="/movies" element={<MoviesPage />} />
-            <Route path="/movies/:id" element={<MovieDetailsPage />} />
+            <Route path="/movies/:id" element={<MovieDetailsPage token={token} />} />
             <Route path="/events/:id" element={<EventDetails token={token} />} />
             <Route path="/bookings" element={<Bookings token={token} />} />
             <Route path="/admin" element={<AdminDashboard token={token} />} />
