@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1200" viewBox="0 0 800 1200">
+  <rect width="800" height="1200" fill="#111827"/>
+  <rect x="60" y="70" width="680" height="1060" rx="40" fill="#1f2937"/>
+  <path d="M240 430c0-95 77-172 172-172h20c95 0 172 77 172 172v320c0 95-77 172-172 172h-20c-95 0-172-77-172-172z" fill="#F84464" fill-opacity="0.9"/>
+  <circle cx="410" cy="430" r="90" fill="#fff" fill-opacity="0.2"/>
+  <path d="M360 340l110 90-110 90z" fill="#fff"/>
+  <text x="400" y="860" text-anchor="middle" font-family="Arial, sans-serif" font-size="48" fill="#F9FAFB">Movie Poster</text>
+  <text x="400" y="920" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#9CA3AF">Unavailable</text>
+</svg>

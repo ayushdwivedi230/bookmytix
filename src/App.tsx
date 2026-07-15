@@ -1,28 +1,55 @@
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams, Navigate, useSearchParams, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { Search, MapPin, ChevronRight, Ticket, CreditCard, CheckCircle, Download, Menu, Star, Calendar, MonitorPlay, X, Headphones, RefreshCcw, Mail, Play, ArrowRight, Sparkles, Filter } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, MapPin, ChevronRight, Ticket, CreditCard, CheckCircle, Download, Menu, Star, Calendar, MonitorPlay, X, Headphones, RefreshCcw, Mail, Play, ArrowRight, Sparkles, Filter as FilterIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import SearchBar from './components/SearchBar';
+import Filter from './components/Filter';
+import MovieGrid from './components/MovieGrid';
+import MovieCard from './components/MovieCard';
+import { movies as movieCatalog } from './data/movies';
 
 const API_BASE = '/api';
 
-const api = {
-  get: async (url: string, token?: string | null) => {
-    const headers: any = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return fetch(`${API_BASE}${url}`, { headers }).then(r => r.json());
-  },
-  post: async (url: string, body: any, token?: string | null) => {
-    const headers: any = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}${url}`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'API Error');
-    return data;
+const clearStoredAuth = () => {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
+const notifyAuthExpired = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('auth:expired'));
   }
+};
+
+const requestJson = async (url: string, options: RequestInit = {}, token?: string | null) => {
+  const headers = new Headers(options.headers);
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const res = await fetch(url, { ...options, headers });
+  const contentType = res.headers.get('content-type') || '';
+  const data = contentType.includes('application/json')
+    ? await res.json().catch(() => ({}))
+    : { error: await res.text().catch(() => 'Request failed') };
+
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      clearStoredAuth();
+      notifyAuthExpired();
+    }
+    throw new Error(data.error || 'API Error');
+  }
+
+  return data;
+};
+
+const api = {
+  get: async (url: string, token?: string | null) => requestJson(`${API_BASE}${url}`, {}, token),
+  post: async (url: string, body: any, token?: string | null) => requestJson(`${API_BASE}${url}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }, token)
 };
 
 const THEME = {
@@ -112,6 +139,10 @@ const Navbar = ({ token, user, onLogOut, selectedCity, setSelectedCity }: any) =
               <ChevronRight size={14} className="rotate-90 text-gray-400" />
             </div>
 
+            <Link to="/movies" className="hidden lg:inline-block text-sm font-semibold text-slate-700 hover:text-[#F84464] transition-colors">
+              Movies
+            </Link>
+
             {token ? (
               <div className="hidden lg:flex items-center gap-6">
                 <Link to="/bookings" className="text-sm font-semibold text-gray-700 hover:text-[#F84464] transition-colors">
@@ -170,6 +201,8 @@ const Navbar = ({ token, user, onLogOut, selectedCity, setSelectedCity }: any) =
                  <span>City: {selectedCity || 'All Cities'}</span>
                </div>
                <hr className="border-gray-100" />
+
+               <Link to="/movies" onClick={() => setIsMenuOpen(false)} className="hover:bg-gray-50 p-2 rounded-lg font-medium">Movies</Link>
 
                {token ? (
                   <>
@@ -449,11 +482,197 @@ const TRAILER_MAP: Record<string, { embedUrl: string, genre: string, duration: s
   }
 };
 
+const MoviesPage = () => {
+  const [search, setSearch] = useState('');
+  const [genre, setGenre] = useState('All');
+  const [language, setLanguage] = useState('All');
+  const [rating, setRating] = useState('All');
+  const [format, setFormat] = useState('All');
+
+  const genres = useMemo(() => ['All', ...Array.from(new Set(movieCatalog.map((movie) => movie.genre)))], []);
+  const languages = useMemo(() => ['All', ...Array.from(new Set(movieCatalog.map((movie) => movie.language)))], []);
+  const ratings = useMemo(() => ['All', ...Array.from(new Set(movieCatalog.map((movie) => movie.rating)))], []);
+  const formats = useMemo(() => ['All', ...Array.from(new Set(movieCatalog.flatMap((movie) => movie.formats)))], []);
+
+  const filteredMovies = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return movieCatalog.filter((movie) => {
+      const matchesSearch = !query || [movie.title, movie.city, movie.genre, movie.language, movie.director, movie.description]
+        .join(' ')
+        .toLowerCase()
+        .includes(query);
+      const matchesGenre = genre === 'All' || movie.genre === genre;
+      const matchesLanguage = language === 'All' || movie.language === language;
+      const matchesRating = rating === 'All' || movie.rating === rating;
+      const matchesFormat = format === 'All' || movie.formats.includes(format);
+      return matchesSearch && matchesGenre && matchesLanguage && matchesRating && matchesFormat;
+    });
+  }, [search, genre, language, rating, format]);
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <section className="bg-gradient-to-br from-slate-950 via-slate-900 to-[#2B314B] text-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-20 sm:px-6 lg:px-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-4 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-sm font-medium text-slate-200 backdrop-blur">
+              <Play size={14} className="mr-2 fill-current" /> Discover the best Indian cinema across major cities
+            </div>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Movies that move with your city</h1>
+            <p className="mt-4 text-lg text-slate-300">Browse a curated collection of over 60 realistic movie experiences with trailers, showtimes, theatres, and formats for every audience.</p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur">
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-300">Now showing</p>
+            <p className="mt-2 text-2xl font-semibold">{movieCatalog.length}+ curated titles</p>
+            <p className="mt-2 text-sm text-slate-300">Search by city, language, rating, genre, and format.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-slate-900">Explore movies</h2>
+            <p className="mt-1 text-sm text-slate-500">Filter by your favourite style, language, and viewing format.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="md:col-span-2 xl:col-span-2">
+              <SearchBar value={search} onChange={setSearch} placeholder="Search title, city, cast, or genre" />
+            </div>
+            <Filter label="Genre" value={genre} options={genres} onChange={setGenre} />
+            <Filter label="Language" value={language} options={languages} onChange={setLanguage} />
+            <Filter label="Rating" value={rating} options={ratings} onChange={setRating} />
+            <Filter label="Format" value={format} options={formats} onChange={setFormat} />
+          </div>
+        </div>
+
+        <MovieGrid movies={filteredMovies} />
+      </section>
+    </div>
+  );
+};
+
+const MovieDetailsPage = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const movie = movieCatalog.find((item) => item.id === id);
+
+  if (!movie) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-4 py-20 text-center">
+        <h1 className="text-3xl font-semibold text-slate-900">Movie not found</h1>
+        <p className="mt-3 text-slate-600">The movie you are looking for is no longer available.</p>
+        <button onClick={() => navigate('/movies')} className="mt-6 rounded-full bg-[#F84464] px-5 py-2.5 font-semibold text-white">
+          Back to movies
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-16">
+      <section className="relative overflow-hidden bg-slate-950 text-white">
+        <img src={movie.banner} alt={movie.title} className="absolute inset-0 h-full w-full object-cover opacity-40" />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/90 to-slate-950/30" />
+        <div className="relative mx-auto flex max-w-7xl flex-col gap-8 px-4 py-20 sm:px-6 lg:flex-row lg:items-end lg:px-8">
+          <div className="max-w-3xl">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.35em] text-[#F84464]">{movie.city}</p>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{movie.title}</h1>
+            <p className="mt-4 max-w-2xl text-lg text-slate-300">{movie.description}</p>
+            <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-200">
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">{movie.genre}</span>
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">{movie.language}</span>
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">{movie.duration}</span>
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">{movie.rating}</span>
+            </div>
+          </div>
+          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
+            <div className="flex items-center gap-2 text-sm text-slate-200">
+              <Star size={16} className="fill-current text-yellow-400" /> {movie.rating}
+            </div>
+            <div className="mt-4 space-y-3 text-sm text-slate-300">
+              <div><span className="text-slate-400">Director:</span> {movie.director}</div>
+              <div><span className="text-slate-400">Cast:</span> {movie.cast.join(', ')}</div>
+              <div><span className="text-slate-400">Formats:</span> {movie.formats.join(' • ')}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-6 md:flex-row">
+              <img src={movie.poster} alt={movie.title} className="h-80 w-full max-w-[260px] rounded-2xl object-cover shadow-md" />
+              <div className="flex-1">
+                <h2 className="text-2xl font-semibold text-slate-900">About the movie</h2>
+                <p className="mt-4 text-base leading-8 text-slate-600">{movie.description}</p>
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Director</p>
+                    <p className="mt-2 text-base font-semibold text-slate-900">{movie.director}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Duration</p>
+                    <p className="mt-2 text-base font-semibold text-slate-900">{movie.duration}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900">Watch trailer</h3>
+              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+                <iframe src={movie.trailer} title={`${movie.title} trailer`} className="aspect-video w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+              </div>
+              <a href={movie.trailer} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#F84464]">
+                <Play size={14} className="fill-current" /> Open trailer on YouTube
+              </a>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900">Showtimes & theatres</h3>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Theatres</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {movie.availableTheatres.map((theatre) => (
+                      <span key={theatre} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">{theatre}</span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Timings</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {movie.showTimings.map((timing) => (
+                      <span key={timing} className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-700">{timing}</span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Formats</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {movie.formats.map((formatOption) => (
+                      <span key={formatOption} className="rounded-full bg-[#F84464]/10 px-3 py-1 text-sm font-medium text-[#F84464]">{formatOption}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
+
 const Home = ({ selectedCity }: { selectedCity: string }) => {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTrailer, setActiveTrailer] = useState<any | null>(null);
+  const [activeMovieIndex, setActiveMovieIndex] = useState(0);
 
   const activeCategory = searchParams.get('category') || 'All';
   const searchQuery = searchParams.get('search') || '';
@@ -502,14 +721,32 @@ const Home = ({ selectedCity }: { selectedCity: string }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const categories = ["All", "Movies", "Concerts", "Sports", "Comedy", "Tech Events"];
+  const featuredMovies = movieCatalog.slice(0, 6);
+  const nowShowing = movieCatalog.slice(0, 8);
+  const comingSoon = movieCatalog.slice(8, 16);
+  const topRated = useMemo(() => {
+    const ratingScore = (rating: string) => ({ U: 5, UA: 4, 'PG-13': 3, A: 2 }[rating] ?? 1);
+    return [...movieCatalog]
+      .sort((a, b) => ratingScore(b.rating) - ratingScore(a.rating) || a.title.localeCompare(b.title))
+      .slice(0, 8);
+  }, []);
+  const activeFeaturedMovie = featuredMovies[activeMovieIndex] || featuredMovies[0];
+
+  useEffect(() => {
+    if (!featuredMovies.length) return;
+    const timer = window.setInterval(() => {
+      setActiveMovieIndex((prev) => (prev + 1) % featuredMovies.length);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [featuredMovies.length]);
+
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-32 text-gray-500 bg-[#0a0a0b] min-h-screen">
       <div className="w-12 h-12 border-4 border-[#F84464] border-t-transparent rounded-full animate-spin mb-4"></div>
       <p className="font-semibold text-lg text-gray-300">Loading the best events for you...</p>
     </div>
   );
-
-  const categories = ["All", "Movies", "Concerts", "Sports", "Comedy", "Tech Events"];
 
   // Filter logic
   const filteredEvents = events.filter(e => {
@@ -547,9 +784,127 @@ const Home = ({ selectedCity }: { selectedCity: string }) => {
     <div className="bg-[#0a0a0b] min-h-screen text-white">
       <HeroSlider onBookNow={() => scrollTo('booking-section')} onExplore={() => scrollTo('explore-section')} />
 
+      <section className="border-t border-white/10 bg-[#0a0a0b] py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#F84464]">Trending now</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">Featured movies</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setActiveMovieIndex((prev) => (prev - 1 + featuredMovies.length) % featuredMovies.length)} className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-[#F84464]">
+                <ArrowRight size={16} className="rotate-180" />
+              </button>
+              <button onClick={() => setActiveMovieIndex((prev) => (prev + 1) % featuredMovies.length)} className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-[#F84464]">
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+            <Link to={`/movies/${activeFeaturedMovie.id}`} className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-[#111218] shadow-2xl">
+              <img src={activeFeaturedMovie.banner} alt={activeFeaturedMovie.title} className="h-full min-h-[420px] w-full object-cover transition duration-700 group-hover:scale-105" loading="lazy" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#06070a] via-[#06070a]/40 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-8 text-white">
+                <div className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-200 backdrop-blur">
+                  Featured pick
+                </div>
+                <h3 className="mt-4 text-3xl font-semibold">{activeFeaturedMovie.title}</h3>
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">{activeFeaturedMovie.description}</p>
+                <div className="mt-5 flex flex-wrap gap-2 text-sm text-slate-200">
+                  <span className="rounded-full bg-white/10 px-3 py-1">{activeFeaturedMovie.genre}</span>
+                  <span className="rounded-full bg-white/10 px-3 py-1">{activeFeaturedMovie.language}</span>
+                  <span className="rounded-full bg-white/10 px-3 py-1">{activeFeaturedMovie.duration}</span>
+                </div>
+              </div>
+            </Link>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {featuredMovies.slice(0, 4).map((movie) => (
+                <Link key={movie.id} to={`/movies/${movie.id}`} className="group overflow-hidden rounded-[24px] border border-white/10 bg-[#111218]">
+                  <div className="aspect-[4/3] overflow-hidden">
+                    <img src={movie.banner} alt={movie.title} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" loading="lazy" />
+                  </div>
+                  <div className="p-4 text-white">
+                    <h4 className="font-semibold">{movie.title}</h4>
+                    <p className="mt-1 text-sm text-slate-400">{movie.city} • {movie.language}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-[#111218] py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#F84464]">Releasing now</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">Now showing</h2>
+            </div>
+            <Link to="/movies" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#F84464]">
+              Browse All <ArrowRight size={14} />
+            </Link>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+            {nowShowing.slice(0, 8).map((movie) => (
+              <MovieCard key={movie.id} movie={movie} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-[#0a0a0b] py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#F84464]">Soon on screen</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">Coming soon</h2>
+            </div>
+            <Link to="/movies" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#F84464]">
+              Browse All <ArrowRight size={14} />
+            </Link>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+            {comingSoon.slice(0, 8).map((movie) => (
+              <MovieCard key={movie.id} movie={movie} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-[#111218] py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#F84464]">Fan favourites</p>
+              <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">Top rated</h2>
+            </div>
+            <Link to="/movies" className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#F84464]">
+              Browse All <ArrowRight size={14} />
+            </Link>
+          </div>
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+            {topRated.slice(0, 8).map((movie) => (
+              <MovieCard key={movie.id} movie={movie} />
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Booking Section */}
       <section id="booking-section" className="py-24 relative bg-gradient-to-b from-[#1A1A1A] to-[#0a0a0b]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#F84464]">New experience</p>
+              <h3 className="text-xl font-semibold text-white">Explore our full movies catalogue</h3>
+            </div>
+            <Link to="/movies" className="rounded-full bg-[#F84464] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#e03b5a]">
+              Browse Movies
+            </Link>
+          </div>
           <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
             <div>
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-2 flex items-center gap-2">
@@ -1416,19 +1771,46 @@ const Auth = ({ setAuth }: { setAuth: (token: string, user: any) => void }) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+
+  const validateForm = () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return 'Please enter a valid email address.';
+    }
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters long.';
+    }
+    if (!isLogin && name.trim().length < 2) {
+      return 'Please enter your full name.';
+    }
+    return '';
+  };
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError('');
+
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       const endpoint = isLogin ? '/auth/login' : '/auth/register';
-      const body = isLogin ? { email, password } : { name, email, password };
+      const body = isLogin
+        ? { email: email.trim().toLowerCase(), password }
+        : { name: name.trim(), email: email.trim().toLowerCase(), password };
       const data = await api.post(endpoint, body);
       setAuth(data.token, data.user);
       navigate('/');
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Authentication failed.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1450,21 +1832,21 @@ const Auth = ({ setAuth }: { setAuth: (token: string, user: any) => void }) => {
             </div>
           )}
           <div>
-             <label className="block text-xs font-semibold text-gray-700 mb-1">Email</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Email</label>
             <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 text-sm focus:outline-none focus:border-[#F84464]" placeholder="you@example.com" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Password</label>
             <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 text-sm focus:outline-none focus:border-[#F84464]" placeholder="••••••••" />
           </div>
-          <button type="submit" className="w-full py-2.5 text-white font-bold rounded text-sm transition-colors mt-2" style={{ backgroundColor: THEME.primary }}>
-            {isLogin ? 'Continue' : 'Sign Up'}
+          <button type="submit" disabled={isSubmitting} className="w-full py-2.5 text-white font-bold rounded text-sm transition-colors mt-2 disabled:opacity-70" style={{ backgroundColor: THEME.primary }}>
+            {isSubmitting ? (isLogin ? 'Signing in...' : 'Creating account...') : (isLogin ? 'Continue' : 'Sign Up')}
           </button>
         </form>
-        
+
         <p className="text-center text-xs text-gray-600 mt-6 border-t pt-4">
           {isLogin ? "I agree to the Terms & Conditions and Privacy Policy." : "Already have an account? "}
-          <button onClick={() => setIsLogin(!isLogin)} className="font-semibold text-black hover:underline cursor-pointer block w-full mt-2">
+          <button onClick={() => { setIsLogin(!isLogin); setError(''); }} className="font-semibold text-black hover:underline cursor-pointer block w-full mt-2">
             {isLogin ? 'Create an account instead' : 'Login instead'}
           </button>
         </p>
@@ -1542,6 +1924,17 @@ export default function App() {
   const [user, setUser] = useState<any>(JSON.parse(localStorage.getItem('user') || 'null'));
   const [selectedCity, setSelectedCity] = useState<string>(() => localStorage.getItem('selectedCity') || '');
 
+  useEffect(() => {
+    const handleExpiredSession = () => {
+      setToken(null);
+      setUser(null);
+      clearStoredAuth();
+    };
+
+    window.addEventListener('auth:expired', handleExpiredSession);
+    return () => window.removeEventListener('auth:expired', handleExpiredSession);
+  }, []);
+
   const handleSetAuth = (newToken: string, newUser: any) => {
     setToken(newToken);
     setUser(newUser);
@@ -1552,8 +1945,7 @@ export default function App() {
   const handleLogOut = () => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearStoredAuth();
   };
 
   return (
@@ -1563,6 +1955,8 @@ export default function App() {
         <main className="flex-grow">
           <Routes>
             <Route path="/" element={<Home selectedCity={selectedCity} />} />
+            <Route path="/movies" element={<MoviesPage />} />
+            <Route path="/movies/:id" element={<MovieDetailsPage />} />
             <Route path="/events/:id" element={<EventDetails token={token} />} />
             <Route path="/bookings" element={<Bookings token={token} />} />
             <Route path="/admin" element={<AdminDashboard token={token} />} />

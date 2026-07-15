@@ -3,8 +3,35 @@ import { createServer as createViteServer } from 'vite';
 import * as path from 'path';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secret123';
+dotenv.config();
+
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-secret-change-me');
+
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET must be set in production');
+}
+
+if (!process.env.JWT_SECRET) {
+  console.warn('JWT_SECRET not set, using a development fallback value');
+}
+
+const BCRYPT_SALT_ROUNDS = 12;
+const normalizeEmail = (value: string) => value.trim().toLowerCase();
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const validateSignupPayload = (name: string, email: string, password: string) => {
+  const trimmedName = name.trim();
+  if (trimmedName.length < 2) return 'Name must be at least 2 characters long';
+  if (!isValidEmail(email)) return 'Please enter a valid email address';
+  if (password.length < 8) return 'Password must be at least 8 characters long';
+  return null;
+};
+const validateLoginPayload = (email: string, password: string) => {
+  if (!isValidEmail(email)) return 'Please enter a valid email address';
+  if (password.length < 8) return 'Password must be at least 8 characters long';
+  return null;
+};
 
 // In-Memory Database
 const db = {
@@ -51,10 +78,12 @@ async function startServer() {
   // Authentication Middleware
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (token == null) return res.sendStatus(401);
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+    if (!token) return res.status(401).json({ error: 'Authentication token required' });
+
     jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-      if (err) return res.sendStatus(403);
+      if (err) return res.status(403).json({ error: 'Invalid or expired token' });
       req.user = user;
       next();
     });
@@ -62,30 +91,40 @@ async function startServer() {
 
   // API Routes
   app.post('/api/auth/register', (req, res) => {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
+    const { name = '', email = '', password = '' } = req.body || {};
+    const trimmedName = String(name).trim();
+    const normalizedEmail = normalizeEmail(String(email));
+    const validationError = validateSignupPayload(trimmedName, normalizedEmail, String(password));
 
-    if (db.users.find(u => u.email === email)) {
+    if (validationError) return res.status(400).json({ error: validationError });
+
+    if (db.users.find(u => normalizeEmail(u.email) === normalizedEmail)) {
       return res.status(400).json({ error: 'Email already exists' });
     }
 
-    const hash = bcrypt.hashSync(password, 8);
+    const hash = bcrypt.hashSync(String(password), BCRYPT_SALT_ROUNDS);
+    const role = normalizedEmail === 'admin@example.com' ? 'admin' : 'user';
     const id = userIds++;
-    db.users.push({ id, name, email, password: hash });
+    db.users.push({ id, name: trimmedName, email: normalizedEmail, password: hash, role });
 
-    const token = jwt.sign({ id, email, name }, JWT_SECRET);
-    res.json({ token, user: { id, name, email } });
+    const token = jwt.sign({ id, email: normalizedEmail, name: trimmedName, role }, JWT_SECRET, { expiresIn: '12h' });
+    res.json({ token, user: { id, name: trimmedName, email: normalizedEmail, role } });
   });
 
   app.post('/api/auth/login', (req, res) => {
-    const { email, password } = req.body;
-    const user = db.users.find(u => u.email === email);
+    const { email = '', password = '' } = req.body || {};
+    const normalizedEmail = normalizeEmail(String(email));
+    const validationError = validateLoginPayload(normalizedEmail, String(password));
 
-    if (!user) return res.status(400).json({ error: 'User not found' });
-    if (!bcrypt.compareSync(password, user.password)) return res.status(403).json({ error: 'Incorrect password' });
+    if (validationError) return res.status(400).json({ error: validationError });
 
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET);
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    const user = db.users.find(u => normalizeEmail(u.email) === normalizedEmail);
+
+    if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+    if (!bcrypt.compareSync(String(password), user.password)) return res.status(401).json({ error: 'Invalid email or password' });
+
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role || 'user' }, JWT_SECRET, { expiresIn: '12h' });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role || 'user' } });
   });
 
   app.get('/api/events', (req, res) => {
@@ -104,6 +143,8 @@ async function startServer() {
   });
 
   app.post('/api/events', authenticateToken, (req: any, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
     const { title, location, date, price, num_seats } = req.body;
     const num = parseInt(num_seats) || 20;
 
@@ -118,6 +159,8 @@ async function startServer() {
   });
 
   app.get('/api/admin/stats', authenticateToken, (req: any, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
     const stats = {
       events: db.events.length,
       bookings: db.bookings.length,
