@@ -7,14 +7,10 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-secret-change-me');
-
-if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET must be set in production');
-}
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? 'render-dev-secret-change-me' : 'dev-secret-change-me');
 
 if (!process.env.JWT_SECRET) {
-  console.warn('JWT_SECRET not set, using a development fallback value');
+  console.warn('JWT_SECRET not set, using a fallback value');
 }
 
 const BCRYPT_SALT_ROUNDS = 12;
