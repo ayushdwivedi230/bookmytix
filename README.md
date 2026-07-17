@@ -8,8 +8,6 @@ A modern full-stack movie ticket booking platform inspired by BookMyShow. Users 
 
 ## 📸 Screenshots
 
-> Add screenshots here
-
 - Home Page
 - Movie Details
 - Theatre Selection
@@ -125,19 +123,10 @@ npm run dev
 
 ---
 
-## 🔑 Environment Variables
 
-Create a `.env` file in the backend directory.
 
-```env
-DATABASE_URL=your_database_url
 
-JWT_SECRET=your_secret_key
 
-PORT=5000
-```
-
----
 
 ## 📡 API Overview
 
@@ -208,7 +197,7 @@ This project helped me strengthen my understanding of:
 
 GitHub: https://github.com/ayushdwivedi230
 
-LinkedIn: https://linkedin.com/in/ayush-dwivedi
+LinkedIn: https://www.linkedin.com/in/ayush-dwivedi23
 
 ---
 
