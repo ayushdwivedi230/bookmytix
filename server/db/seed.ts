@@ -186,7 +186,7 @@ const EVENT_SEED = [
     location: 'Chandigarh',
     daysFromNow: 60,
     basePrice: 2999,
-    image: '/diljit.png',
+    image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&q=80&w=800&h=600',
     description: 'A must-see live concert night featuring top-tier sound and premium hospitality zones.',
     seatPrefix: 'C', numSeats: 50,
     theatres: [

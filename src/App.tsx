@@ -458,7 +458,7 @@ const TRAILER_MAP: Record<string, { embedUrl: string, genre: string, duration: s
     duration: '3h 0m',
     rating: 'All Ages'
   },
-  'IPL Final 2026': {
+  'IPL Finals': {
     embedUrl: 'https://www.youtube.com/embed/a4G8zz37hQQ',
     watchUrl: 'https://www.youtube.com/watch?v=a4G8zz37hQQ',
     genre: 'Sports, Cricket',
