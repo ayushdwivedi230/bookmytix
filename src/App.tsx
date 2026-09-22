@@ -49,7 +49,13 @@ const api = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
-  }, token)
+  }, token),
+  put: async (url: string, body: any, token?: string | null) => requestJson(`${API_BASE}${url}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }, token),
+  del: async (url: string, token?: string | null) => requestJson(`${API_BASE}${url}`, { method: 'DELETE' }, token),
 };
 
 const THEME = {
@@ -493,36 +499,63 @@ const TRAILER_MAP: Record<string, { embedUrl: string, genre: string, duration: s
 
 const BookingFlow = ({ token, event }: { token: string | null; event: any }) => {
   const navigate = useNavigate();
-  const [selectedTheatre, setSelectedTheatre] = useState('');
-  const [selectedShowtime, setSelectedShowtime] = useState('');
+  const [shows, setShows] = useState<any[]>([]);
+  const [selectedShow, setSelectedShow] = useState<any>(null);
   const [seats, setSeats] = useState<any[]>([]);
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [step, setStep] = useState<'select' | 'seats' | 'checkout' | 'confirmed'>('select');
-  const [loadingSeats, setLoadingSeats] = useState(true);
+  const [loadingShows, setLoadingShows] = useState(true);
+  const [loadingSeats, setLoadingSeats] = useState(false);
   const [booking, setBooking] = useState(false);
   const [confirmationBooking, setConfirmationBooking] = useState<any>(null);
 
+  // Load shows for this event
   useEffect(() => {
     if (!event?.id) return;
+    setLoadingShows(true);
+    api.get(`/events/${event.id}/shows`)
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : [];
+        setShows(arr);
+        setLoadingShows(false);
+      })
+      .catch(() => setLoadingShows(false));
+  }, [event?.id]);
+
+  // Load seats when a show is selected
+  useEffect(() => {
+    if (!selectedShow?.id) return;
     setLoadingSeats(true);
-    api.get(`/events/${event.id}/seats`)
+    api.get(`/shows/${selectedShow.id}/seats`)
       .then((data) => {
         setSeats(Array.isArray(data) ? data : []);
         setLoadingSeats(false);
       })
       .catch(() => setLoadingSeats(false));
-  }, [event?.id]);
+  }, [selectedShow?.id]);
 
+  // Reset when event changes
   useEffect(() => {
     if (!event) return;
-    setSelectedTheatre(event.theatres?.[0] || '');
-    setSelectedShowtime(event.showTimings?.[0] || '');
+    setSelectedShow(null);
+    setSeats([]);
     setSelectedSeats([]);
     setStep('select');
   }, [event?.id]);
 
-  const theatres = event?.theatres?.length ? event.theatres : [event?.location || 'Main Hall'];
-  const showtimes = event?.showTimings?.length ? event.showTimings : ['09:00 AM'];
+  // Group shows by theatre for display
+  const showsByTheatre = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (const s of shows) {
+      const key = s.theatre?.name || 'Unknown';
+      if (!map[key]) map[key] = [];
+      map[key].push(s);
+    }
+    return map;
+  }, [shows]);
+
+  const formatShowTime = (startsAt: string) =>
+    new Date(startsAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const getSeatCategory = (index: number) => {
     const row = Math.floor(index / 10);
@@ -539,9 +572,9 @@ const BookingFlow = ({ token, event }: { token: string | null; event: any }) => 
     setSelectedSeats(prev => prev.includes(seatId) ? prev.filter(s => s !== seatId) : [...prev, seatId]);
   };
 
-  const basePrice = Number(event?.price || 0);
+  const showPrice = selectedShow ? Number(selectedShow.price) : Number(event?.price || 0);
   const numTickets = selectedSeats.length;
-  const basePriceTotal = numTickets * basePrice;
+  const basePriceTotal = numTickets * showPrice;
   const premiumChargesTotal = selectedSeats.reduce((sum, seatId) => {
     const seatIndex = seats.findIndex(s => s.id === seatId);
     if (seatIndex !== -1) return sum + getSeatCategory(seatIndex).surcharge;
@@ -552,16 +585,13 @@ const BookingFlow = ({ token, event }: { token: string | null; event: any }) => 
   const grandTotal = basePriceTotal + premiumChargesTotal + convenienceFee + gst;
 
   const handleBooking = async () => {
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-    if (!selectedTheatre || !selectedShowtime || selectedSeats.length === 0) return;
+    if (!token) { navigate('/login'); return; }
+    if (!selectedShow || selectedSeats.length === 0) return;
     setBooking(true);
     try {
-      await api.post('/bookings', { event_id: event.id, seat_ids: selectedSeats, total_price: grandTotal }, token);
-      const bookings = await api.get('/bookings', token);
-      const latest = bookings[bookings.length - 1];
+      await api.post('/bookings', { show_id: selectedShow.id, seat_ids: selectedSeats }, token);
+      const bookingsList = await api.get('/bookings', token);
+      const latest = bookingsList[bookingsList.length - 1];
       setConfirmationBooking(latest);
       setStep('confirmed');
     } catch (err: any) {
@@ -590,48 +620,50 @@ const BookingFlow = ({ token, event }: { token: string | null; event: any }) => 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
         {step === 'select' && (
           <div className="space-y-6">
-            <div>
-              <h4 className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">Theatre</h4>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                {theatres.map((theatre: string) => (
-                  <button
-                    key={theatre}
-                    onClick={() => setSelectedTheatre(theatre)}
-                    className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${selectedTheatre === theatre ? 'border-[#F84464] bg-[#F84464]/10 text-[#F84464]' : 'border-slate-200 bg-white text-slate-700 hover:border-[#F84464]/40'}`}
-                  >
-                    {theatre}
-                  </button>
+            {loadingShows ? (
+              <div className="text-center text-sm text-slate-500 py-6">Loading available shows…</div>
+            ) : shows.length === 0 ? (
+              <div className="text-center text-sm text-slate-500 py-6">No shows available for this event.</div>
+            ) : (
+              <>
+                {Object.entries(showsByTheatre).map(([theatreName, theatreShows]) => (
+                  <div key={theatreName}>
+                    <h4 className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500 mb-3">{theatreName}</h4>
+                    <div className="flex flex-wrap gap-3">
+                      {theatreShows.map((show: any) => (
+                        <button
+                          key={show.id}
+                          onClick={() => setSelectedShow(show)}
+                          className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                            selectedShow?.id === show.id
+                              ? 'border-[#F84464] bg-[#F84464] text-white'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-[#F84464]/40'
+                          }`}
+                        >
+                          {formatShowTime(show.startsAt)}
+                          <span className="ml-1 text-xs opacity-70">₹{show.price}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
-              </div>
-            </div>
 
-            <div>
-              <h4 className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">Show timing</h4>
-              <div className="mt-3 flex flex-wrap gap-3">
-                {showtimes.map((showtime: string) => (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                  <div className="text-sm text-slate-500">
+                    {selectedShow
+                      ? `Selected: ${selectedShow.theatre?.name} • ${formatShowTime(selectedShow.startsAt)}`
+                      : 'Pick a theatre and show time to continue.'}
+                  </div>
                   <button
-                    key={showtime}
-                    onClick={() => setSelectedShowtime(showtime)}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${selectedShowtime === showtime ? 'border-[#F84464] bg-[#F84464] text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-[#F84464]/40'}`}
+                    onClick={() => { setStep('seats'); setSelectedSeats([]); }}
+                    disabled={!selectedShow}
+                    className="rounded-full bg-[#F84464] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#e03b5a] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {showtime}
+                    Continue to Seats
                   </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
-              <div className="text-sm text-slate-500">
-                {selectedTheatre && selectedShowtime ? `Selected: ${selectedTheatre} • ${selectedShowtime}` : 'Pick a theatre and show time to continue.'}
-              </div>
-              <button
-                onClick={() => setStep('seats')}
-                disabled={!selectedTheatre || !selectedShowtime}
-                className="rounded-full bg-[#F84464] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#e03b5a] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Continue to Seats
-              </button>
-            </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -639,10 +671,10 @@ const BookingFlow = ({ token, event }: { token: string | null; event: any }) => 
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">{selectedTheatre}</p>
-                <p className="text-sm text-slate-500">{selectedShowtime}</p>
+                <p className="text-sm font-semibold text-slate-900">{selectedShow?.theatre?.name || 'Theatre'}</p>
+                <p className="text-sm text-slate-500">{selectedShow ? formatShowTime(selectedShow.startsAt) : ''}</p>
               </div>
-              <div className="text-sm font-semibold text-[#F84464]">₹{basePrice} per ticket</div>
+              <div className="text-sm font-semibold text-[#F84464]">₹{showPrice} per ticket</div>
             </div>
 
             {loadingSeats ? (
@@ -701,8 +733,8 @@ const BookingFlow = ({ token, event }: { token: string | null; event: any }) => 
               <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">Booking summary</p>
               <div className="mt-3 space-y-2 text-sm text-slate-600">
                 <div className="flex items-center justify-between"><span>Movie</span><span className="font-semibold text-slate-900">{event.title}</span></div>
-                <div className="flex items-center justify-between"><span>Theatre</span><span className="font-semibold text-slate-900">{selectedTheatre}</span></div>
-                <div className="flex items-center justify-between"><span>Show</span><span className="font-semibold text-slate-900">{selectedShowtime}</span></div>
+                <div className="flex items-center justify-between"><span>Theatre</span><span className="font-semibold text-slate-900">{selectedShow?.theatre?.name || '—'}</span></div>
+                <div className="flex items-center justify-between"><span>Show</span><span className="font-semibold text-slate-900">{selectedShow ? formatShowTime(selectedShow.startsAt) : '—'}</span></div>
                 <div className="flex items-center justify-between"><span>Seats</span><span className="font-semibold text-slate-900">{selectedSeats.length}</span></div>
                 <div className="flex items-center justify-between"><span>Base price</span><span className="font-semibold text-slate-900">₹{basePriceTotal}</span></div>
                 <div className="flex items-center justify-between"><span>Tier surcharge</span><span className="font-semibold text-slate-900">₹{premiumChargesTotal}</span></div>
@@ -1538,20 +1570,35 @@ const EventDetails = ({ token }: { token: string | null }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [event, setEvent] = useState<any>(null);
+  const [firstShowId, setFirstShowId] = useState<number | null>(null);
   const [seats, setSeats] = useState<any[]>([]);
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      api.get(`/events/${id}`),
-      api.get(`/events/${id}/seats`)
-    ]).then(([evtData, seatsData]) => {
-      setEvent(evtData);
-      setSeats(seatsData);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    api.get(`/events/${id}`)
+      .then(async (evtData) => {
+        setEvent(evtData);
+        // Load shows to get first show ID for seat map
+        try {
+          const showsData = await api.get(`/events/${id}/shows`);
+          const firstShow = Array.isArray(showsData) && showsData.length > 0 ? showsData[0] : null;
+          if (firstShow) {
+            setFirstShowId(firstShow.id);
+            const seatsData = await api.get(`/shows/${firstShow.id}/seats`);
+            setSeats(Array.isArray(seatsData) ? seatsData : []);
+          }
+        } catch {
+          // Fall back to legacy seats endpoint
+          try {
+            const seatsData = await api.get(`/events/${id}/seats`);
+            setSeats(Array.isArray(seatsData) ? seatsData : []);
+          } catch { /* ignore */ }
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, [id]);
 
   const getSeatCategory = (index: number) => {
@@ -1590,14 +1637,12 @@ const EventDetails = ({ token }: { token: string | null }) => {
   const grandTotal = basePriceTotal + premiumChargesTotal + convenienceFee + gst;
 
   const handleBook = async () => {
-    if (!token) {
-      navigate('/login');
-      return;
-    }
+    if (!token) { navigate('/login'); return; }
     if (selectedSeats.length === 0) return;
+    if (!firstShowId) { alert('No show available to book.'); return; }
     setBooking(true);
     try {
-      await api.post('/bookings', { event_id: event.id, seat_ids: selectedSeats, total_price: grandTotal }, token);
+      await api.post('/bookings', { show_id: firstShowId, seat_ids: selectedSeats }, token);
       alert('Booking Successful!');
       navigate('/bookings');
     } catch (e: any) {
@@ -1918,6 +1963,22 @@ Please show this ticket details at the entrance.
                 <span className="font-bold text-gray-900 block mt-0.5">₹{booking.total_price || 'N/A'}</span>
               </div>
             </div>
+            {(booking.theatre || booking.show_time) && (
+              <div className="grid grid-cols-2 gap-y-5 gap-x-8 text-sm border-t border-gray-100 pt-5 mt-2">
+                {booking.theatre && (
+                  <div>
+                    <span className="text-gray-400 text-xs font-semibold uppercase block tracking-wide">Theatre</span>
+                    <span className="font-bold text-gray-800 mt-0.5 block">{booking.theatre}</span>
+                  </div>
+                )}
+                {booking.show_time && (
+                  <div>
+                    <span className="text-gray-400 text-xs font-semibold uppercase block tracking-wide">Show Time</span>
+                    <span className="font-bold text-gray-800 mt-0.5 block">{booking.show_time}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="mt-8 pt-4 border-t border-gray-100 flex justify-between items-center">
@@ -2042,7 +2103,6 @@ const AdminDashboard = ({ token }: { token: string | null }) => {
   const [location, setLocation] = useState('');
   const [date, setDate] = useState('');
   const [price, setPrice] = useState('');
-  const [seats, setSeats] = useState('20');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -2059,9 +2119,9 @@ const AdminDashboard = ({ token }: { token: string | null }) => {
     e.preventDefault();
     setCreating(true);
     try {
-      await api.post('/events', { title, location, date, price: parseFloat(price), num_seats: parseInt(seats) }, token);
+      await api.post('/events', { title, location, date, price: parseFloat(price) }, token);
       alert('Event Created Successfully!');
-      setTitle(''); setLocation(''); setDate(''); setPrice(''); setSeats('20');
+      setTitle(''); setLocation(''); setDate(''); setPrice('');
       
       api.get('/admin/stats', token).then(setStats);
     } catch (err: any) {
@@ -2111,15 +2171,9 @@ const AdminDashboard = ({ token }: { token: string | null }) => {
                 <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full px-4 py-2 bg-gray-50 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ticket Price (₹)</label>
-                <input type="number" step="0.01" required value={price} onChange={e => setPrice(e.target.value)} className="w-full px-4 py-2 bg-gray-50 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="1499" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Number of Seats (Max capacity)</label>
-                <input type="number" required value={seats} onChange={e => setSeats(e.target.value)} className="w-full px-4 py-2 bg-gray-50 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="20" />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ticket Price (₹)</label>
+              <input type="number" step="0.01" required value={price} onChange={e => setPrice(e.target.value)} className="w-full px-4 py-2 bg-gray-50 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="1499" />
             </div>
             <button type="submit" disabled={creating} className="w-full py-3 text-white font-semibold rounded bg-gray-900 hover:bg-black transition-colors mt-6">
               {creating ? 'Creating...' : 'Publish Event'}
