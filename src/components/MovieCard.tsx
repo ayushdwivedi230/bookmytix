@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, Clock3, Star } from 'lucide-react';
-import type { Movie } from '../data/movies';
+import type { Movie } from '../types';
 
 interface MovieCardProps {
   movie: Movie;
@@ -11,7 +11,8 @@ interface MovieCardProps {
 
 export default function MovieCard({ movie, showReserveButton = false, onReserve }: MovieCardProps) {
   const [imageError, setImageError] = useState(false);
-  const imageSrc = imageError ? '/fallback-movie.svg' : movie.poster;
+  const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=800&q=80';
+  const imageSrc = imageError ? FALLBACK_IMAGE : movie.poster;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
