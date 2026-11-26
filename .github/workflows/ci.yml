@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
@@ -6,37 +6,113 @@ on:
   pull_request:
     branches: [main, master]
 
-jobs:
-  ci:
-    name: Lint · Test · Build
-    runs-on: ubuntu-latest
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
+jobs:
+  validate:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm ci
 
-      - name: Lint (TypeScript)
+      - name: Prettier Code Style Check
+        run: npx prettier --check "src/**/*.{ts,tsx}" "server/**/*.ts"
+
+      - name: Strict TypeScript Compilation
+        run: npm run typecheck
+
+      - name: ESLint Code Quality Check
         run: npm run lint
 
-      - name: Run tests
-        # Tests use an in-memory stub — no DATABASE_URL needed
+  test:
+    name: Automated Test Suites
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Vitest Suites
         env:
-          JWT_SECRET: ci-test-secret-do-not-use-in-prod
+          JWT_SECRET: ci-test-secret-do-not-use-in-prod-min-16-chars
           NODE_ENV: test
         run: npm test
 
-      - name: Build
+  build:
+    name: Production Build & Bundle
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Frontend & Backend Server
         env:
-          # JWT_SECRET is required at esbuild time (server.ts startup check is runtime-only)
-          JWT_SECRET: ci-build-secret-placeholder
+          JWT_SECRET: ci-build-secret-placeholder-min-16-chars
           NODE_ENV: production
         run: npm run build
+
+      - name: Verify Distribution Artifacts
+        run: |
+          test -f dist/index.html || exit 1
+          test -f dist/server.js || exit 1
+          echo "Production artifacts verified successfully."
+
+  docker-build:
+    name: Docker Container Build
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: actions/setup-buildx-action@v3
+
+      - name: Build Container Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: bookmytix:ci-check
+          load: true
+
+      - name: Run Container Healthcheck Verification
+        run: |
+          docker run -d --name test-container -p 3000:3000 \
+            -e JWT_SECRET=ci-container-secret-min-16-chars-long \
+            -e NODE_ENV=production \
+            bookmytix:ci-check
+          sleep 5
+          docker ps
+          docker stop test-container

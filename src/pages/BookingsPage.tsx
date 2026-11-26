@@ -6,7 +6,7 @@ import { bookingsApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { TicketCard } from '../components/tickets/TicketCard';
 import { Skeleton } from '../components/ui/Skeleton';
-import { EmptyState, ErrorState } from '../components/ui/States';
+import { ErrorState } from '../components/ui/States';
 import { Button } from '../components/ui/Button';
 
 export function BookingsPage() {
@@ -20,54 +20,84 @@ export function BookingsPage() {
     if (!token) return;
     setLoading(true);
     setError(false);
-    bookingsApi.list(token)
-      .then(data => { setBookings(data); setLoading(false); })
-      .catch(() => { setError(true); setLoading(false); });
+    bookingsApi
+      .list(token)
+      .then((data) => {
+        setBookings(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError(true);
+        setLoading(false);
+      });
   };
 
-  useEffect(() => { load(); }, [token]);
+  useEffect(() => {
+    load();
+  }, [token]);
 
   if (!token) return <Navigate to="/login" replace />;
 
   return (
-    <div className="min-h-screen bg-slate-50 py-10">
+    <div className="min-h-screen bg-[#08090D] text-slate-100 py-10">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-6 border-b border-white/[0.08]">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">My Tickets</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Your confirmed bookings and e-tickets</p>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#F84464] mb-1">
+              <Ticket size={14} />
+              <span>Digital Passes</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              My Bookings &amp; Tickets
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+              Access your scannable QR e-tickets and reservation receipts
+            </p>
           </div>
-          <Button variant="primary" onClick={() => navigate('/')}>Book more</Button>
+          <Button variant="primary" onClick={() => navigate('/movies')}>
+            Book More Movies
+          </Button>
         </div>
 
+        {/* Content */}
         {loading ? (
           <div className="space-y-6">
-            {[1, 2].map(i => (
-              <div key={i} className="rounded-2xl border border-slate-200 bg-white overflow-hidden flex flex-col md:flex-row" aria-hidden>
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                className="rounded-3xl border border-white/10 bg-[#0F1118] overflow-hidden flex flex-col md:flex-row"
+              >
                 <div className="flex-1 p-6 space-y-3">
                   <Skeleton className="h-5 w-1/3" />
                   <Skeleton className="h-7 w-2/3" />
                   <Skeleton className="h-4 w-1/2" />
                   <Skeleton className="h-4 w-3/4" />
                 </div>
-                <Skeleton className="w-full md:w-48 md:shrink-0 h-48" />
+                <Skeleton className="w-full md:w-56 md:shrink-0 h-48" />
               </div>
             ))}
           </div>
         ) : error ? (
           <ErrorState onRetry={load} />
         ) : bookings.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-            <EmptyState
-              icon={<Ticket size={48} />}
-              title="No tickets yet"
-              description="You haven't booked any tickets. Explore movies and events to get started."
-              action={{ label: 'Explore events', onClick: () => navigate('/') }}
-            />
+          <div className="rounded-3xl border border-white/10 bg-[#0F1118] p-10 text-center shadow-xl">
+            <div className="w-16 h-16 rounded-2xl bg-[#F84464]/10 text-[#F84464] border border-[#F84464]/20 flex items-center justify-center mx-auto mb-4">
+              <Ticket size={32} />
+            </div>
+            <h3 className="text-xl font-extrabold text-white">No Tickets Booked Yet</h3>
+            <p className="text-sm text-slate-400 mt-1 max-w-sm mx-auto">
+              You haven't made any reservations. Discover the latest blockbuster movies and pick your favorite seats.
+            </p>
+            <div className="mt-6">
+              <Button variant="primary" onClick={() => navigate('/movies')}>
+                Explore Movies Now
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-6">
-            {[...bookings].reverse().map(b => (
+            {[...bookings].reverse().map((b) => (
               <TicketCard key={b.id} booking={b} />
             ))}
           </div>

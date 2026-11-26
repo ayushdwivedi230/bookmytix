@@ -8,6 +8,41 @@
       "when": 1790101140562,
       "tag": "0000_curly_mockingbird",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795432040667,
+      "tag": "0001_ordinary_archangel",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795435685025,
+      "tag": "0002_silky_gargoyle",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795437489694,
+      "tag": "0003_young_sleepwalker",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795589100000,
+      "tag": "0004_fintech_checkout_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795598000000,
+      "tag": "0005_rbac_audit_support",
+      "breakpoints": true
     }
   ]
 }

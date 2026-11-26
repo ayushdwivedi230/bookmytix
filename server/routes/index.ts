@@ -1,0 +1,35 @@
+import { Router } from 'express';
+import { authRouter } from './authRoutes.js';
+import { eventRouter } from './eventRoutes.js';
+import { movieRouter } from './movieRoutes.js';
+import { cinemaRouter } from './cinemaRoutes.js';
+import { showRouter } from './showRoutes.js';
+import { bookingRouter } from './bookingRoutes.js';
+import { adminRouter } from './adminRoutes.js';
+import { healthRouter } from './healthRoutes.js';
+import { paymentRouter } from './paymentRoutes.js';
+import { checkoutRouter } from './checkoutRoutes.js';
+import { foodRouter } from './foodRoutes.js';
+import { couponRouter } from './couponRoutes.js';
+import { ticketRouter } from './ticketRoutes.js';
+import { supportRouter } from './supportRoutes.js';
+import { aiRouter } from './aiRoutes.js';
+
+export const apiRouter = Router();
+
+apiRouter.use(healthRouter);
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/events', eventRouter);
+apiRouter.use('/movies', movieRouter);
+apiRouter.use('/cinemas', cinemaRouter);
+apiRouter.use('/theatres', cinemaRouter);
+apiRouter.use('/shows', showRouter);
+apiRouter.use('/bookings', bookingRouter);
+apiRouter.use('/checkout', checkoutRouter);
+apiRouter.use('/payments', paymentRouter);
+apiRouter.use('/food-items', foodRouter);
+apiRouter.use('/coupons', couponRouter);
+apiRouter.use('/tickets', ticketRouter);
+apiRouter.use('/support', supportRouter);
+apiRouter.use('/ai', aiRouter);
+apiRouter.use('/admin', adminRouter);

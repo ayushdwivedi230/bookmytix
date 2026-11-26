@@ -10,12 +10,16 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-      <div className="text-slate-300 mb-4">{icon}</div>
-      <h3 className="text-lg font-semibold text-slate-800 mb-1">{title}</h3>
-      {description && <p className="text-sm text-slate-500 max-w-xs mb-6">{description}</p>}
+    <div className="flex flex-col items-center justify-center py-20 px-6 text-center rounded-2xl border border-white/[0.06] bg-[#0F1118]/80">
+      <div className="text-slate-500 mb-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.04]">
+        {icon}
+      </div>
+      <h3 className="text-lg font-bold text-slate-100 mb-1.5">{title}</h3>
+      {description && <p className="text-sm text-slate-400 max-w-sm mb-6">{description}</p>}
       {action && (
-        <Button variant="primary" onClick={action.onClick}>{action.label}</Button>
+        <Button variant="primary" size="md" onClick={action.onClick}>
+          {action.label}
+        </Button>
       )}
     </div>
   );
@@ -29,18 +33,20 @@ interface ErrorStateProps {
 
 export function ErrorState({
   title = 'Something went wrong',
-  description = 'We could not load the requested data. Please try again.',
+  description = 'We were unable to load the latest entertainment schedule. Please try again.',
   onRetry,
 }: ErrorStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-      <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mb-4">
-        <span className="text-2xl">⚠️</span>
+    <div className="flex flex-col items-center justify-center py-20 px-6 text-center rounded-2xl border border-rose-500/20 bg-[#0F1118]/90">
+      <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-4 text-2xl">
+        🎬
       </div>
-      <h3 className="text-lg font-semibold text-slate-800 mb-1">{title}</h3>
-      <p className="text-sm text-slate-500 max-w-xs mb-6">{description}</p>
+      <h3 className="text-lg font-bold text-slate-100 mb-1.5">{title}</h3>
+      <p className="text-sm text-slate-400 max-w-sm mb-6">{description}</p>
       {onRetry && (
-        <Button variant="secondary" onClick={onRetry}>Try again</Button>
+        <Button variant="secondary" size="md" onClick={onRetry}>
+          Try again
+        </Button>
       )}
     </div>
   );

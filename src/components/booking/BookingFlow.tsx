@@ -108,7 +108,11 @@ export function BookingFlow({ eventId, eventTitle, token }: BookingFlowProps) {
     setSeatsError(false);
     setSelectedSeatIds([]);
     showsApi.seats(showId)
-      .then(data => { setSeats(data); setLoadingSeats(false); })
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data.seats;
+        setSeats(list);
+        setLoadingSeats(false);
+      })
       .catch(() => { setSeatsError(true); setLoadingSeats(false); });
   };
   useEffect(() => {
@@ -272,12 +276,11 @@ export function BookingFlow({ eventId, eventTitle, token }: BookingFlowProps) {
                   const booked = seat.status === 'booked';
                   const tier = getSeatTier(idx);
                   const tierColor = tier.name === 'VIP' ? 'amber' : tier.name === 'Premium' ? 'purple' : 'green';
-                  let cls = '';
-                  if (booked) cls = 'bg-slate-200 border-slate-300 text-slate-400 cursor-not-allowed';
-                  else if (selected)
-                    cls = `bg-${tierColor}-500 border-${tierColor}-500 text-white shadow-sm`;
-                  else
-                    cls = `bg-white border-${tierColor}-300 text-${tierColor}-700 hover:bg-${tierColor}-50 cursor-pointer`;
+                  const cls = booked
+                    ? 'bg-slate-200 border-slate-300 text-slate-400 cursor-not-allowed'
+                    : selected
+                      ? `bg-${tierColor}-500 border-${tierColor}-500 text-white shadow-sm`
+                      : `bg-white border-${tierColor}-300 text-${tierColor}-700 hover:bg-${tierColor}-50 cursor-pointer`;
                   return (
                     <button
                       key={seat.id}
