@@ -41,5 +41,24 @@ export function errorHandler(
     return;
   }
 
-  res.status(500).json({ error: 'Internal server error' });
+  // Handle PostgreSQL specific errors
+  const errCode = (err as any).code;
+  if (errCode === '23505') {
+    res.status(409).json({ error: 'A record with these details already exists.' });
+    return;
+  }
+
+  if (errCode === 'ECONNREFUSED' || err.message?.includes('connect ECONNREFUSED')) {
+    res.status(503).json({
+      error: 'Database connection failed. If deployed on Vercel, please check that DATABASE_URL is set in your Vercel Environment Variables.',
+    });
+    return;
+  }
+
+  const errorMessage =
+    process.env.NODE_ENV === 'production' && !err.message?.includes('database') && !err.message?.includes('Connection')
+      ? 'Internal server error'
+      : err.message || 'Internal server error';
+
+  res.status(500).json({ error: errorMessage });
 }

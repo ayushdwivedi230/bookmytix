@@ -9,6 +9,19 @@ const app = express();
 
 app.use(correlationIdMiddleware);
 app.use(metricsMiddleware);
+
+// Enable CORS for all origins in serverless environment
+app.use((_req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Correlation-ID');
+  if (_req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 app.use(
   helmet({
     contentSecurityPolicy: false,

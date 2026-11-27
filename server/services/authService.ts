@@ -79,19 +79,31 @@ export const authService = {
     const passwordHash = bcrypt.hashSync(password, BCRYPT_SALT_ROUNDS);
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
-    const [user] = await db
-      .insert(users)
-      .values({
-        name: name.trim(),
-        email: normalizedEmail,
-        passwordHash,
-        role: 'customer',
-        preferredCity: preferredCity.trim() || 'Delhi',
-        emailVerificationToken: verificationToken,
-        isEmailVerified: false,
-        isActive: true,
-      })
-      .returning();
+    let user;
+    try {
+      const [inserted] = await db
+        .insert(users)
+        .values({
+          name: name.trim(),
+          email: normalizedEmail,
+          passwordHash,
+          role: 'customer',
+          preferredCity: preferredCity.trim() || 'Delhi',
+          emailVerificationToken: verificationToken,
+          isEmailVerified: false,
+          isActive: true,
+        })
+        .returning();
+      user = inserted;
+    } catch (err: any) {
+      if (err.code === '23505' || err.message?.includes('duplicate key') || err.message?.includes('users_email_unique')) {
+        throw new AppError('An account with this email address already exists. Please sign in instead.', 409);
+      }
+      if (err.code === 'ECONNREFUSED' || err.message?.includes('connect ECONNREFUSED')) {
+        throw new AppError('Database connection failed. Please ensure DATABASE_URL is configured in your environment variables.', 503);
+      }
+      throw err;
+    }
 
     const token = jwt.sign(
       { id: user.id, email: user.email, name: user.name, role: user.role },
