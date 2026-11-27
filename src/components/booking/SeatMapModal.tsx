@@ -445,7 +445,7 @@ export function SeatMapModal({
     } finally {
       setLoadingSeats(false);
     }
-  }, [showId, token, basePrice]);
+  }, [showId, token]);
 
   // Initial load when modal opens
   useEffect(() => {
@@ -703,6 +703,16 @@ export function SeatMapModal({
       list.push(s);
       rowMap.set(r, list);
     }
+    // Sort seats in each row numerically by seat column
+    for (const list of rowMap.values()) {
+      list.sort((a, b) => {
+        const numA =
+          parseInt(String(a.seat_number || (a as any).seatNumber || '').replace(/\D+/g, ''), 10) || a.id;
+        const numB =
+          parseInt(String(b.seat_number || (b as any).seatNumber || '').replace(/\D+/g, ''), 10) || b.id;
+        return numA - numB;
+      });
+    }
     return Array.from(rowMap.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [activeSeats]);
 
@@ -825,7 +835,7 @@ export function SeatMapModal({
               ) : (
                 <div className="space-y-4 max-w-xl mx-auto w-full overflow-x-auto pb-2">
                   {rows.map(([rowLabel, rowSeatList]) => {
-                    const rowCat = rowSeatList[0]?.category || 'standard';
+                    const rowCat = (rowSeatList[0]?.category || 'standard').toLowerCase();
                     const catStyle = CATEGORY_STYLES[rowCat] || CATEGORY_STYLES.standard;
 
                     return (
@@ -895,7 +905,9 @@ export function SeatMapModal({
               {/* Category Pricing & Legend */}
               <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-3 pt-4 border-t border-white/[0.08] text-xs max-w-xl mx-auto w-full">
                 {Object.entries(CATEGORY_STYLES).map(([catKey, style]) => {
-                  const sampleSeat = realSeats.find((s) => s.category === catKey);
+                  const sampleSeat = activeSeats.find(
+                    (s) => (s.category || '').toLowerCase() === catKey.toLowerCase(),
+                  );
                   const priceLabel = sampleSeat
                     ? `₹${sampleSeat.price}`
                     : catKey === 'recliner'

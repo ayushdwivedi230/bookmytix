@@ -10,7 +10,8 @@ const envSchema = z.object({
     process.env.NODE_ENV === 'test' ? 'test-jwt-secret-min-16-chars-long' : 'dev-jwt-secret-min-16-chars-long-local-only'
   ),
   DATABASE_URL: z.string().optional().default(
-    process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/bookmytix'
+    process.env.DATABASE_URL ||
+      'postgresql://neondb_owner:npg_lehIazqZ9KA0@ep-gentle-base-b44wumzi.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require'
   ),
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(8).optional(),
